@@ -42,25 +42,21 @@ python app.py --demo
 
 ## 3. Conectar na impressora (modo ao vivo)
 
-1. **Na tela da A1:** Configurações → ative o **Modo LAN**. Anote o **IP**, o
-   **Código de Acesso** e o **número de série** que aparecem ali.
-2. Copie `config.example.json` para `config.json` e preencha:
+A conexão é **automática**: o programa descobre a impressora na rede sozinho.
 
-```json
-{
-  "ip": "192.168.1.50",
-  "serial": "01PXXXXXXXXXXXXXX",
-  "access_code": "12345678"
-}
-```
+1. **Na tela da A1:** ative o **Modo LAN** e anote só o **Código de Acesso**.
+2. Abra o programa e escolha **`[2]` Conectar na impressora**.
+3. Ele procura a A1 na rede (IP e número de série são detectados sozinhos),
+   mostra qual encontrou e pede **apenas o código de acesso**.
+4. Pronto — conecta e começa a mostrar os dados ao vivo. Para sair, `Ctrl+C`.
 
-3. Rode:
+O programa salva isso num `config.json` ao lado dele. Nas próximas vezes, o
+`[2]` já conecta direto (e re-localiza a impressora caso o IP tenha mudado).
+Use **`[3]` Procurar / trocar impressora** para reconfigurar.
 
-```powershell
-python app.py
-```
-
-Saia com `Ctrl+C`. Para mudar o intervalo de atualização: `python app.py --intervalo 5`.
+> Requisito: o PC e a impressora precisam estar na **mesma rede Wi-Fi**.
+> Se a descoberta automática falhar (rede com multicast bloqueado), o programa
+> oferece digitar IP/série/código manualmente.
 
 ## Regras de diagnóstico já implementadas
 

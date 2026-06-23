@@ -23,3 +23,20 @@ def load_config(path="config.json"):
         print(f"Configuracao incompleta. Faltam os campos: {', '.join(faltando)}")
         sys.exit(2)
     return cfg
+
+
+def read_config(path="config.json"):
+    """Le o config se existir; retorna dict ou None (sem encerrar o programa)."""
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (ValueError, OSError):
+        return None
+
+
+def write_config(path, cfg):
+    """Salva o config em JSON."""
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=2)

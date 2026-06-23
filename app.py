@@ -12,7 +12,9 @@ import sys
 import time
 from collections import deque
 
+import config
 import diagnostics as diag
+import discovery
 import updater
 from version import __version__ as APP_VERSION
 
@@ -24,12 +26,6 @@ RES_DIR = getattr(sys, "_MEIPASS", BASE_DIR)
 # Arquivos editaveis pelo usuario (config.json): ao lado do .exe quando empacotado,
 # senao ao lado do app.py.
 APP_DIR = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else BASE_DIR
-
-TEMPLATE_CONFIG = {
-    "ip": "192.168.1.50",
-    "serial": "01PXXXXXXXXXXXXXX",
-    "access_code": "12345678",
-}
 
 ICONE = {"OK": "[ OK ]", "ATENCAO": "[!]", "FALHA": "[XX]", "INFO": "[i]"}
 
@@ -106,10 +102,69 @@ def run_live(cfg, intervalo):
     return 0
 
 
+def _connect_flow(config_path, reconfigure=False):
+    """Conecta na impressora. Usa o config salvo (atualizando o IP) ou faz a
+    configuracao automatica na primeira vez / quando reconfigurar."""
+    cfg = config.read_config(config_path)
+    if cfg and cfg.get("serial") and cfg.get("access_code") and not reconfigure:
+        print("  Procurando a impressora na rede para confirmar o IP...")
+        for d in discovery.discover(timeout=5):
+            if d.get("serial") == cfg.get("serial"):
+                if d["ip"] != cfg.get("ip"):
+                    print(f"  IP atualizado: {cfg.get('ip')} -> {d['ip']}")
+                cfg["ip"] = d["ip"]
+                config.write_config(config_path, cfg)
+                break
+        run_live(cfg, 3.0)
+        return
+    _setup_and_connect(config_path)
+
+
+def _setup_and_connect(config_path):
+    """Descobre a impressora na rede, pede so o codigo de acesso e conecta."""
+    print("  Procurando impressoras Bambu na rede (uns 6 segundos)...")
+    achadas = discovery.discover(timeout=6)
+
+    if not achadas:
+        print("  Nenhuma impressora encontrada automaticamente.")
+        print("  Confira: impressora ligada, no MESMO Wi-Fi e com Modo LAN ativo.")
+        if input("  Quer digitar os dados manualmente? [s/N]: ").strip().lower() != "s":
+            return
+        ip = input("    IP: ").strip()
+        serial = input("    Numero de serie: ").strip()
+        code = input("    Codigo de acesso: ").strip()
+        if not (ip and serial and code):
+            print("  Dados incompletos. Cancelado.")
+            return
+        cfg = {"ip": ip, "serial": serial, "access_code": code}
+    else:
+        if len(achadas) == 1:
+            alvo = achadas[0]
+            print(f"  Encontrada: {alvo.get('name') or 'Bambu'} em "
+                  f"{alvo['ip']} (SN {alvo['serial']})")
+        else:
+            print("  Impressoras encontradas:")
+            for i, d in enumerate(achadas, 1):
+                print(f"   [{i}] {d.get('name') or 'Bambu'} - {d['ip']} (SN {d['serial']})")
+            try:
+                alvo = achadas[int(input("  Escolha o numero: ").strip()) - 1]
+            except (ValueError, IndexError):
+                print("  Selecao invalida.")
+                return
+        print("  So falta o codigo de acesso (tela da impressora > Modo LAN).")
+        code = input("  Codigo de acesso: ").strip()
+        if not code:
+            print("  Codigo vazio. Cancelado.")
+            return
+        cfg = {"ip": alvo["ip"], "serial": alvo["serial"], "access_code": code}
+
+    config.write_config(config_path, cfg)
+    print("  Configuracao salva. Conectando...")
+    run_live(cfg, 3.0)
+
+
 def run_menu():
     """Menu interativo (modo padrao quando o programa abre sem argumentos)."""
-    from config import load_config
-
     config_path = os.path.join(APP_DIR, "config.json")
 
     if updater.check_and_update(APP_VERSION):
@@ -121,8 +176,9 @@ def run_menu():
         print(f"  Bambu A1 - Diagnostico de telemetria  (v{APP_VERSION})")
         print("=" * 60)
         print("  [1] Rodar demo (dados de exemplo, sem impressora)")
-        print("  [2] Conectar na impressora (usa config.json)")
-        print("  [3] Sair")
+        print("  [2] Conectar na impressora")
+        print("  [3] Procurar / trocar impressora")
+        print("  [4] Sair")
         try:
             escolha = input("  Escolha uma opcao: ").strip()
         except (EOFError, KeyboardInterrupt):
@@ -134,18 +190,14 @@ def run_menu():
             run_demo()
             input("\n  Pressione Enter para voltar ao menu...")
         elif escolha == "2":
-            if not os.path.exists(config_path):
-                with open(config_path, "w", encoding="utf-8") as f:
-                    json.dump(TEMPLATE_CONFIG, f, indent=2)
-                print("\n  Nao havia 'config.json'. Criei um modelo ao lado do programa:")
-                print(f"    {config_path}")
-                print("  Abra esse arquivo e preencha o IP, o numero de serie e o")
-                print("  codigo de acesso da sua A1 (tela da impressora > Modo LAN).")
-                input("\n  Pressione Enter para voltar ao menu...")
-                continue
             print()
-            run_live(load_config(config_path), 3.0)
+            _connect_flow(config_path, reconfigure=False)
+            input("\n  Pressione Enter para voltar ao menu...")
         elif escolha == "3":
+            print()
+            _connect_flow(config_path, reconfigure=True)
+            input("\n  Pressione Enter para voltar ao menu...")
+        elif escolha == "4":
             print("  Ate logo!")
             return 0
         else:
