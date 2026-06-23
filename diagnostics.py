@@ -180,6 +180,69 @@ def rule_overtemp(s):
     return achados
 
 
+def _codes_set(state):
+    """Conjunto de codigos HMS ativos num estado parseado."""
+    return {hms.format_code(e.get("attr", 0), e.get("code", 0))
+            for e in state.get("hms", [])}
+
+
+def rule_intermittent_hms(s, history, janela_s=120, min_aparicoes=3):
+    """Erro HMS que liga e desliga varias vezes = mau contato (cabo/conector).
+
+    O sinal mais forte, so por software, de cabo do cabecote (USB-C) gasto.
+    """
+    if not history or len(history) < 4:
+        return []
+    agora = history[-1][0]
+    seq = [(t, _codes_set(st)) for (t, st) in history if agora - t <= janela_s]
+    if len(seq) < 4:
+        return []
+    aparicoes = {}
+    anterior = set()
+    for _, codes in seq:
+        for c in codes - anterior:          # transicao ausente -> presente
+            aparicoes[c] = aparicoes.get(c, 0) + 1
+        anterior = codes
+    achados = []
+    for c, n in sorted(aparicoes.items()):
+        if n >= min_aparicoes:
+            achados.append(Finding(
+                FALHA, "TH board / cabo",
+                f"Erro intermitente: {c} apareceu {n}x",
+                f"O erro {c} ligou e desligou {n}x em ~{janela_s // 60} min. Padrao "
+                "classico de mau contato: cabo do cabecote (USB-C) ou conector frouxo/"
+                "oxidado. Teste trocando o cabo por um bom e reassentando os conectores.",
+            ))
+    return achados
+
+
+def rule_sensor_glitch(s, history, janela_s=90, min_glitches=2):
+    """Saltos isolados e termicamente impossiveis na leitura do bico = dropout
+    momentaneo do sensor (perda de leitura pelo cabo/TH board)."""
+    if not history or len(history) < 3:
+        return []
+    agora = history[-1][0]
+    pts = [st.get("nozzle_temper") for (t, st) in history
+           if st.get("nozzle_temper") is not None and agora - t <= janela_s]
+    if len(pts) < 3:
+        return []
+    glitches = 0
+    for i in range(1, len(pts) - 1):
+        ant, cur, prox = pts[i - 1], pts[i], pts[i + 1]
+        # ponto isolado bem fora dos dois vizinhos (que estao proximos entre si)
+        if abs(ant - prox) < 10 and abs(cur - ant) >= 30 and abs(cur - prox) >= 30:
+            glitches += 1
+    if glitches >= min_glitches:
+        return [Finding(
+            FALHA, "TH board / cabo",
+            f"Leitura do bico com saltos impossiveis ({glitches}x)",
+            "A temperatura do bico deu picos/quedas isolados e termicamente impossiveis, "
+            "sinal de perda momentanea de leitura do sensor do cabecote. Aponta para mau "
+            "contato no cabo do cabecote (USB-C) ou na TH board.",
+        )]
+    return []
+
+
 def diagnose(snapshot, history=None):
     s = parse(snapshot)
     achados = []
@@ -190,4 +253,6 @@ def diagnose(snapshot, history=None):
     if history is not None:
         achados += rule_heating(s, history)
         achados += rule_bed_heating(s, history)
+        achados += rule_intermittent_hms(s, history)
+        achados += rule_sensor_glitch(s, history)
     return s, achados

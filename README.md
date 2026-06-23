@@ -66,6 +66,10 @@ Use **`[3]` Procurar / trocar impressora** para reconfigurar.
 - **Aquecimento do bico** — não sobe de temperatura mesmo com alvo definido.
 - **Aquecimento da mesa** — não sobe de temperatura (aquecedor / cabo da mesa do A1).
 - **Sobreaquecimento** — bico ou mesa muito acima do alvo (MOSFET travado ligado).
+- **Erro intermitente (HMS oscilando)** — erro que liga/desliga várias vezes:
+  mau contato no cabo do cabeçote (USB‑C) ou conector.
+- **Salto impossível na leitura do bico** — pico/queda isolado e termicamente
+  impossível = perda momentânea de leitura do sensor (cabo / TH board).
 
 ## Atualização automática
 
