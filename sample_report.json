@@ -1,0 +1,17 @@
+{
+  "print": {
+    "nozzle_temper": 210.0,
+    "nozzle_target_temper": 220.0,
+    "bed_temper": 60.0,
+    "bed_target_temper": 60.0,
+    "cooling_fan_speed": "100",
+    "heatbreak_fan_speed": "0",
+    "big_fan1_speed": "0",
+    "big_fan2_speed": "0",
+    "gcode_state": "RUNNING",
+    "wifi_signal": "-55dBm",
+    "hms": [
+      { "attr": 50331904, "code": 196609 }
+    ]
+  }
+}
