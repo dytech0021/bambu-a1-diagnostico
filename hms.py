@@ -7,10 +7,12 @@ fica nos 16 bits altos de 'code'. A descricao em texto vem do arquivo
 """
 import json
 import os
+import sys
 
 HMS_WIKI_BASE = "https://wiki.bambulab.com/en/x1/troubleshooting/hmscode"
 
-_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Quando empacotado (PyInstaller), os dados ficam em sys._MEIPASS.
+_BASE_DIR = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
 _CODES_PATH = os.path.join(_BASE_DIR, "hms_codes.json")
 
 # Mapeamento de severidade (16 bits altos de 'code').

@@ -16,6 +16,19 @@ import diagnostics as diag
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# Recursos empacotados (somente leitura). Com PyInstaller (--onefile) ficam em
+# sys._MEIPASS; rodando como script, ficam ao lado do app.py.
+RES_DIR = getattr(sys, "_MEIPASS", BASE_DIR)
+# Arquivos editaveis pelo usuario (config.json): ao lado do .exe quando empacotado,
+# senao ao lado do app.py.
+APP_DIR = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else BASE_DIR
+
+TEMPLATE_CONFIG = {
+    "ip": "192.168.1.50",
+    "serial": "01PXXXXXXXXXXXXXX",
+    "access_code": "12345678",
+}
+
 ICONE = {"OK": "[ OK ]", "ATENCAO": "[!]", "FALHA": "[XX]", "INFO": "[i]"}
 
 
@@ -47,7 +60,7 @@ def render(snapshot, findings):
 
 
 def run_demo():
-    with open(os.path.join(BASE_DIR, "sample_report.json"), encoding="utf-8") as f:
+    with open(os.path.join(RES_DIR, "sample_report.json"), encoding="utf-8") as f:
         snap = json.load(f)
     _, findings = diag.diagnose(snap, None)
     print(render(snap, findings))
@@ -91,9 +104,55 @@ def run_live(cfg, intervalo):
     return 0
 
 
+def run_menu():
+    """Menu interativo (modo padrao quando o programa abre sem argumentos)."""
+    from config import load_config
+
+    config_path = os.path.join(APP_DIR, "config.json")
+    while True:
+        print()
+        print("=" * 60)
+        print("  Bambu A1 - Diagnostico de telemetria")
+        print("=" * 60)
+        print("  [1] Rodar demo (dados de exemplo, sem impressora)")
+        print("  [2] Conectar na impressora (usa config.json)")
+        print("  [3] Sair")
+        try:
+            escolha = input("  Escolha uma opcao: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return 0
+
+        if escolha == "1":
+            print()
+            run_demo()
+            input("\n  Pressione Enter para voltar ao menu...")
+        elif escolha == "2":
+            if not os.path.exists(config_path):
+                with open(config_path, "w", encoding="utf-8") as f:
+                    json.dump(TEMPLATE_CONFIG, f, indent=2)
+                print("\n  Nao havia 'config.json'. Criei um modelo ao lado do programa:")
+                print(f"    {config_path}")
+                print("  Abra esse arquivo e preencha o IP, o numero de serie e o")
+                print("  codigo de acesso da sua A1 (tela da impressora > Modo LAN).")
+                input("\n  Pressione Enter para voltar ao menu...")
+                continue
+            print()
+            run_live(load_config(config_path), 3.0)
+        elif escolha == "3":
+            print("  Ate logo!")
+            return 0
+        else:
+            print("  Opcao invalida.")
+
+
 def main():
+    # Sem argumentos (ex.: clique-duplo no .exe) -> abre o menu interativo.
+    if len(sys.argv) == 1:
+        return run_menu()
+
     ap = argparse.ArgumentParser(description="Diagnostico de telemetria Bambu A1")
-    ap.add_argument("--config", default=os.path.join(BASE_DIR, "config.json"))
+    ap.add_argument("--config", default=os.path.join(APP_DIR, "config.json"))
     ap.add_argument("--demo", action="store_true",
                     help="Roda com dados de exemplo, sem impressora")
     ap.add_argument("--intervalo", type=float, default=3.0,
