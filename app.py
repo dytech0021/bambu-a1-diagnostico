@@ -13,6 +13,8 @@ import time
 from collections import deque
 
 import diagnostics as diag
+import updater
+from version import __version__ as APP_VERSION
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -94,7 +96,7 @@ def run_live(cfg, intervalo):
                 print("Aguardando dados da impressora...")
                 continue
             s = diag.parse(snap)
-            history.append((time.time(), s["nozzle_temper"], s["nozzle_target"]))
+            history.append((time.time(), s))
             _, findings = diag.diagnose(snap, list(history))
             print(render(snap, findings))
     except KeyboardInterrupt:
@@ -109,10 +111,14 @@ def run_menu():
     from config import load_config
 
     config_path = os.path.join(APP_DIR, "config.json")
+
+    if updater.check_and_update(APP_VERSION):
+        return 0  # vai reiniciar para aplicar a atualizacao
+
     while True:
         print()
         print("=" * 60)
-        print("  Bambu A1 - Diagnostico de telemetria")
+        print(f"  Bambu A1 - Diagnostico de telemetria  (v{APP_VERSION})")
         print("=" * 60)
         print("  [1] Rodar demo (dados de exemplo, sem impressora)")
         print("  [2] Conectar na impressora (usa config.json)")

@@ -67,12 +67,21 @@ Saia com `Ctrl+C`. Para mudar o intervalo de atualização: `python app.py --int
 - **HMS** — lista cada código de erro ativo com sua severidade.
 - **Termistor do bico/mesa** — leitura fora de faixa (aberto/curto/conector solto).
 - **Ventoinha do hotend** — parada com o bico quente (risco de *heat creep*).
-- **Aquecimento** — bico não sobe de temperatura mesmo com alvo definido.
+- **Aquecimento do bico** — não sobe de temperatura mesmo com alvo definido.
+- **Aquecimento da mesa** — não sobe de temperatura (aquecedor / cabo da mesa do A1).
+- **Sobreaquecimento** — bico ou mesa muito acima do alvo (MOSFET travado ligado).
+
+## Atualização automática
+
+Quando rodando como **executável (`.exe`)**, o programa verifica ao abrir se há
+uma versão mais nova publicada nas *Releases* do GitHub. Se houver, ele baixa e
+se atualiza sozinho — não precisa entrar no site. Rodando como script Python,
+essa verificação é ignorada (você atualiza com `git pull`).
 
 ## Próximos passos do roadmap
 
 - **Fase 0:** preencher `hms_codes.json` com os códigos reais do A1 e confirmar o
   acesso MQTT no firmware atual.
-- **Fase 2:** mais regras (motores/homing, AMS, cabo da mesa do A1).
+- **Fase 2 (em andamento):** mais regras (motores/homing, AMS).
 - **Fase 3:** interface visual, histórico por número de série e laudo em PDF.
 - **Fase 4–5:** jiga de teste de placa (hardware) com placa de referência.

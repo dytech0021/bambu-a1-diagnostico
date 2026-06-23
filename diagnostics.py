@@ -104,24 +104,33 @@ def rule_heatbreak_fan(s):
     return []
 
 
-def rule_heating(s, history):
-    """Usa o historico recente para detectar bico que nao aquece.
+def _sem_aquecer(history, temp_key, janela_s=30, span_min=15, subida_min=2.0):
+    """Retorna (subida, span) se a temperatura nao subiu na janela; senao None.
 
-    history: lista de tuplas (timestamp, nozzle_temper, nozzle_target).
+    history: lista de tuplas (timestamp, estado_parseado).
     """
+    agora = history[-1][0]
+    pontos = [(t, st.get(temp_key)) for (t, st) in history
+              if st.get(temp_key) is not None and agora - t <= janela_s]
+    if len(pontos) < 2:
+        return None
+    span = pontos[-1][0] - pontos[0][0]
+    if span < span_min:
+        return None
+    subida = pontos[-1][1] - pontos[0][1]
+    if subida < subida_min:
+        return (subida, span)
+    return None
+
+
+def rule_heating(s, history):
+    """Bico com alvo definido mas que nao esquenta -> aquecedor/termistor."""
     n, tgt = s["nozzle_temper"], s["nozzle_target"]
     if not history or n is None or tgt is None or tgt <= 0 or (tgt - n) <= 10:
         return []
-
-    agora = history[-1][0]
-    janela = [h for h in history if h[1] is not None and agora - h[0] <= 30]
-    if len(janela) < 2:
-        return []
-    span = janela[-1][0] - janela[0][0]
-    if span < 15:
-        return []
-    subida = janela[-1][1] - janela[0][1]
-    if subida < 2:
+    r = _sem_aquecer(history, "nozzle_temper")
+    if r:
+        subida, span = r
         return [Finding(
             FALHA, "TH board",
             "Bico nao aquece (temperatura nao sobe)",
@@ -131,12 +140,54 @@ def rule_heating(s, history):
     return []
 
 
+def rule_bed_heating(s, history):
+    """Mesa com alvo definido mas que nao esquenta."""
+    b, tgt = s["bed_temper"], s["bed_target"]
+    if not history or b is None or tgt is None or tgt <= 0 or (tgt - b) <= 8:
+        return []
+    r = _sem_aquecer(history, "bed_temper")
+    if r:
+        subida, span = r
+        return [Finding(
+            FALHA, "Mainboard",
+            "Mesa nao aquece (temperatura nao sobe)",
+            f"Alvo {tgt:.0f} C, atual {b:.0f} C, variacao {subida:+.1f} C em {span:.0f}s. "
+            "Verificar o aquecedor da mesa, o cabo da mesa (ponto critico no A1) e o "
+            "MOSFET de aquecimento na mainboard.",
+        )]
+    return []
+
+
+def rule_overtemp(s):
+    """Temperatura muito acima do alvo -> aquecedor possivelmente travado ligado."""
+    achados = []
+    n, ntgt = s["nozzle_temper"], s["nozzle_target"]
+    if n is not None and ntgt is not None and ntgt > 0 and n > ntgt + 25:
+        achados.append(Finding(
+            FALHA, "TH board",
+            "Bico muito acima do alvo (risco de runaway termico)",
+            f"Alvo {ntgt:.0f} C, atual {n:.0f} C. Suspeita de MOSFET do aquecedor "
+            "em curto (travado ligado) na TH board.",
+        ))
+    b, btgt = s["bed_temper"], s["bed_target"]
+    if b is not None and btgt is not None and btgt > 0 and b > btgt + 20:
+        achados.append(Finding(
+            FALHA, "Mainboard",
+            "Mesa muito acima do alvo (risco de runaway termico)",
+            f"Alvo {btgt:.0f} C, atual {b:.0f} C. Suspeita de MOSFET da mesa em curto "
+            "(travado ligado) na mainboard.",
+        ))
+    return achados
+
+
 def diagnose(snapshot, history=None):
     s = parse(snapshot)
     achados = []
     achados += rule_hms(s)
     achados += rule_thermistor(s)
     achados += rule_heatbreak_fan(s)
+    achados += rule_overtemp(s)
     if history is not None:
         achados += rule_heating(s, history)
+        achados += rule_bed_heating(s, history)
     return s, achados
